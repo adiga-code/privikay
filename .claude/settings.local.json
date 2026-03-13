@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i 's/from services.analytics_service import AnalyticsService, _days_word/from services.analytics_service import AnalyticsService/' \"/c/Users/Hezh PC/Desktop/projects/фриланс_11_03/handlers/checkin.py\")",
+      "Bash(sed -i 's/_days_word\\(v\\)/AnalyticsService._days_word\\(v\\)/' \"/c/Users/Hezh PC/Desktop/projects/фриланс_11_03/handlers/checkin.py\")",
+      "Bash(ls \"/c/Users/Hezh PC/Desktop/projects/фриланс_11_03/\"*.db)"
+    ]
+  }
+}
