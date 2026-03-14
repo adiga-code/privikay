@@ -6,32 +6,17 @@ services:
     container_name: privykai_bot
     restart: unless-stopped
 
-    # Secrets come from .env file (never commit it)
     env_file:
       - .env
 
-    # Override DB path to use the mounted volume
-    environment:
-      DB_URL: sqlite+aiosqlite:////app/data/habits.db
-
-    # Persist the database between restarts / rebuilds
-    volumes:
-      - bot_data:/app/data
-
-    # Health check — just verifies the process is alive
     healthcheck:
       test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 20s
 
-    # Limit resources (adjust to your VPS)
     deploy:
       resources:
         limits:
           memory: 256M
-
-volumes:
-  bot_data:
-    driver: local

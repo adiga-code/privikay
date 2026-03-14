@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     bot_token: SecretStr
     bot_username: str = "Privykai_bot"
-    db_url: str = "sqlite+aiosqlite:///./habits.db"
+    db_url: str = "postgresql+asyncpg://bot:bot@localhost:5432/habits"
     academy_url: str = "https://example.com/academy"
 
     # ЮКасса: формат YUKASSA_TOKEN = "shopId:MODE:secretKey"
