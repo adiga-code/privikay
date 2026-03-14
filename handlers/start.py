@@ -1,5 +1,5 @@
 from aiogram import Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,17 +18,26 @@ WELCOME_TEXT = (
     "— улучшить режим и самочувствие\n"
     "— отслеживать прогресс\n"
     "— замечать результаты\n\n"
-    "Первые *10 дней* — бесплатно.\n\n"
+    "Первые *15 дней* — бесплатно.\n\n"
     "Готов начать?"
 )
 
 
 @start_router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext, session: AsyncSession) -> None:
+async def cmd_start(
+    message: Message, command: CommandObject, state: FSMContext, session: AsyncSession
+) -> None:
     await state.clear()
+
+    # Parse referral parameter: /start ref_blogger1
+    ref = (command.args or "").strip()[:100] or None
 
     user_svc = UserService(session)
     user = await user_svc.get(message.from_user.id)
+
+    # Save referral source on first visit (don't overwrite existing)
+    if ref and user and user.referral_source is None:
+        await user_svc.update(user, referral_source=ref)
 
     if user and user.onboarding_done:
         sub_svc = SubscriptionService()
@@ -60,5 +69,9 @@ async def cmd_start(message: Message, state: FSMContext, session: AsyncSession) 
             parse_mode="Markdown",
         )
         return
+
+    # Store ref in FSM so onboarding can save it when creating the user
+    if ref:
+        await state.update_data(referral_source=ref)
 
     await message.answer(WELCOME_TEXT, parse_mode="Markdown", reply_markup=kb_start())

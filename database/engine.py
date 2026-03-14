@@ -20,6 +20,7 @@ _MIGRATIONS = [
     ("users", "meal_gap_target",     "SMALLINT"),
     ("daily_logs", "reading_amount", "INTEGER"),
     ("daily_logs", "meal_gap",       "BOOLEAN"),
+    ("users",      "referral_source", "VARCHAR(100)"),
 ]
 
 

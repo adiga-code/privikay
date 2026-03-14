@@ -9,6 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
+from collections import Counter
+
 from database.models import FeedbackLog, User
 from keyboards.builders import kb_admin
 from services.user_service import UserService
@@ -164,5 +166,55 @@ async def cb_feedback(callback: CallbackQuery, session: AsyncSession, bot: Bot) 
         callback.from_user.id,
         BufferedInputFile(file_content, filename=filename),
         caption="📋 Полный отчёт по обратной связи",
+    )
+    await callback.answer()
+
+
+@admin_router.callback_query(F.data == "admin:referrals")
+async def cb_referrals(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
+    if not _is_admin(callback.from_user.id):
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+
+    result = await session.execute(select(User).where(User.onboarding_done.is_(True)))
+    users: list[User] = list(result.scalars().all())
+
+    total = len(users)
+    sources = Counter(u.referral_source or "органика" for u in users)
+
+    # Summary message
+    lines_msg = ["🔗 *Рефералы*\n", f"Всего пользователей (прошли онбординг): *{total}*\n"]
+    for src, cnt in sources.most_common():
+        pct = cnt * 100 // total if total else 0
+        lines_msg.append(f"• `{src}` — *{cnt}* чел. ({pct}%)")
+
+    await callback.message.answer(
+        "\n".join(lines_msg), parse_mode="Markdown", reply_markup=kb_admin()
+    )
+
+    # Detailed file
+    now_str = datetime.utcnow().strftime("%d.%m.%Y %H:%M")
+    file_lines = [
+        f"=== РЕФЕРАЛЫ — {now_str} UTC ===",
+        f"Всего: {total}",
+        "",
+        "--- Сводка по источникам ---",
+    ]
+    for src, cnt in sources.most_common():
+        pct = cnt * 100 // total if total else 0
+        file_lines.append(f"{src}: {cnt} ({pct}%)")
+
+    file_lines += ["", "--- Список пользователей ---", "Имя | ID | Источник | Дата регистрации"]
+    for u in sorted(users, key=lambda x: x.registered_at):
+        reg = u.registered_at.strftime("%d.%m.%Y")
+        src = u.referral_source or "органика"
+        file_lines.append(f"{u.name} | {u.id} | {src} | {reg}")
+
+    file_content = "\n".join(file_lines).encode("utf-8")
+    filename = f"referrals_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.txt"
+    await bot.send_document(
+        callback.from_user.id,
+        BufferedInputFile(file_content, filename=filename),
+        caption="🔗 Полный список пользователей по источникам",
     )
     await callback.answer()

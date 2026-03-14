@@ -71,6 +71,9 @@ class User(Base):
     # Meal gap habit config
     meal_gap_target: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)  # 8 | 10 | 12
 
+    # Referral
+    referral_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     # Flags
     onboarding_done: Mapped[bool] = mapped_column(Boolean, default=False)
     academy_offered: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -45,12 +45,16 @@ async def got_name(message: Message, state: FSMContext, session: AsyncSession) -
     if not (1 <= len(name) <= 50):
         await message.answer("Введите имя от 1 до 50 символов.")
         return
+    data = await state.get_data()
     user_svc = UserService(session)
     user = await user_svc.get(message.from_user.id)
     if user:
         await user_svc.update(user, name=name)
     else:
-        await user_svc.create(message.from_user.id, name)
+        user = await user_svc.create(message.from_user.id, name)
+        ref = data.get("referral_source")
+        if ref:
+            await user_svc.update(user, referral_source=ref)
     await state.update_data(name=name)
     await message.answer(
         f"Приятно познакомиться, *{name}*! 👋\n\nПоделитесь номером телефона или пропустите.",

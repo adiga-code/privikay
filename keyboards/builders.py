@@ -198,5 +198,6 @@ def kb_admin() -> InlineKeyboardMarkup:
     kb.button(text="📊 Статистика", callback_data="admin:stats")
     kb.button(text="💳 Подписки", callback_data="admin:subs")
     kb.button(text="📋 Отзывы бета-теста", callback_data="admin:feedback")
+    kb.button(text="🔗 Рефералы", callback_data="admin:referrals")
     kb.adjust(1)
     return kb.as_markup()
