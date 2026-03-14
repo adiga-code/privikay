@@ -26,10 +26,8 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class PaymentStates(StatesGroup):
-    waiting_email    = State()  # collect email if no phone
-    waiting_city     = State()  # collect city
-    waiting_district = State()  # collect district
-    waiting_check    = State()  # payment link sent, waiting confirmation
+    waiting_email = State()  # collect email if no phone
+    waiting_check = State()  # payment link sent, waiting confirmation
 
 
 # ── ЮКасса API ────────────────────────────────────────────────────────────────
@@ -266,7 +264,12 @@ async def cb_plan_selected(
     user = await user_svc.get(callback.from_user.id)
 
     contact = (user.phone if user and user.phone else None)
-    await state.update_data(plan=plan, user_id=callback.from_user.id, contact=contact or "")
+    city = user.city if user else ""
+    district = user.district if user else ""
+    await state.update_data(
+        plan=plan, user_id=callback.from_user.id,
+        contact=contact or "", city=city or "", district=district or "",
+    )
 
     # Step 1: get contact if missing
     if not contact:
@@ -277,17 +280,7 @@ async def cb_plan_selected(
         )
         return
 
-    # Step 2: get city if missing
-    if not (user and user.city):
-        await state.set_state(PaymentStates.waiting_city)
-        await callback.message.answer(
-            "🏙 В каком *городе* вы живёте?\n\n_Например: Москва_",
-            parse_mode="Markdown",
-        )
-        return
-
     # All data ready → create payment
-    await state.update_data(city=user.city, district=user.district or "")
     await callback.message.answer("⏳ Создаём ссылку на оплату…")
     await _send_payment_link(callback.message, state)
 
@@ -301,52 +294,12 @@ async def got_email(message: Message, state: FSMContext, session: AsyncSession) 
 
     await state.update_data(contact=email)
 
-    # Check if city already set
+    # city/district already collected during onboarding — read from profile
     user_svc = UserService(session)
     user = await user_svc.get(message.from_user.id)
-    if user and user.city:
-        await state.update_data(city=user.city, district=user.district or "")
-        await message.answer("⏳ Создаём ссылку на оплату…")
-        await _send_payment_link(message, state)
-        return
-
-    await state.set_state(PaymentStates.waiting_city)
-    await message.answer(
-        "🏙 В каком *городе* вы живёте?\n\n_Например: Москва_",
-        parse_mode="Markdown",
+    await state.update_data(
+        city=user.city if user else "",
+        district=user.district if user else "",
     )
-
-
-@subscription_router.message(PaymentStates.waiting_city)
-async def got_city(message: Message, state: FSMContext) -> None:
-    city = message.text.strip() if message.text else ""
-    if not city:
-        await message.answer("Пожалуйста, введите название города.")
-        return
-
-    await state.update_data(city=city)
-    await state.set_state(PaymentStates.waiting_district)
-    await message.answer(
-        "🏘 Введите *район* или округ:\n\n_Например: Центральный, ЗАО, Невский_",
-        parse_mode="Markdown",
-    )
-
-
-@subscription_router.message(PaymentStates.waiting_district)
-async def got_district(message: Message, state: FSMContext, session: AsyncSession) -> None:
-    district = message.text.strip() if message.text else ""
-    if not district:
-        await message.answer("Пожалуйста, введите район.")
-        return
-
-    await state.update_data(district=district)
-
-    # Save city/district to user profile
-    data = await state.get_data()
-    user_svc = UserService(session)
-    user = await user_svc.get(message.from_user.id)
-    if user:
-        await user_svc.update(user, city=data.get("city"), district=district)
-
     await message.answer("⏳ Создаём ссылку на оплату…")
     await _send_payment_link(message, state)

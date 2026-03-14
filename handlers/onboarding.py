@@ -17,6 +17,8 @@ onboarding_router = Router(name="onboarding")
 class OnboardingStates(StatesGroup):
     waiting_name = State()
     waiting_contact = State()
+    waiting_city = State()
+    waiting_district = State()
     waiting_goal = State()
     waiting_weight_goal = State()
     waiting_habits = State()
@@ -64,12 +66,12 @@ async def got_contact(message: Message, state: FSMContext, session: AsyncSession
     user_svc = UserService(session)
     user = await user_svc.get_or_raise(message.from_user.id)
     await user_svc.update(user, phone=message.contact.phone_number)
-    await _ask_goal(message, state)
+    await _ask_city(message, state)
 
 
 @onboarding_router.message(OnboardingStates.waiting_contact, F.text == "Пропустить →")
 async def skip_contact(message: Message, state: FSMContext) -> None:
-    await _ask_goal(message, state)
+    await _ask_city(message, state)
 
 
 @onboarding_router.message(OnboardingStates.waiting_contact)
@@ -77,13 +79,50 @@ async def contact_bad(message: Message) -> None:
     await message.answer("Нажмите кнопку «📱 Поделиться контактом» или «Пропустить →».")
 
 
-async def _ask_goal(message: Message, state: FSMContext) -> None:
+# ── 2b. City & District ───────────────────────────────────────────────────────
+
+async def _ask_city(message: Message, state: FSMContext) -> None:
     await message.answer("Хорошо!", reply_markup=kb_remove())
-    await message.answer("Выберите главную цель:", reply_markup=kb_goal())
-    await state.set_state(OnboardingStates.waiting_goal)
+    await message.answer(
+        "🏙 В каком *городе* вы живёте?\n\n_Например: Москва_",
+        parse_mode="Markdown",
+    )
+    await state.set_state(OnboardingStates.waiting_city)
+
+
+@onboarding_router.message(OnboardingStates.waiting_city)
+async def got_city(message: Message, state: FSMContext) -> None:
+    city = message.text.strip() if message.text else ""
+    if not city:
+        await message.answer("Пожалуйста, введите название города.")
+        return
+    await state.update_data(city=city)
+    await message.answer(
+        "🏘 Введите *район* или округ:\n\n_Например: Центральный, ЗАО, Невский_",
+        parse_mode="Markdown",
+    )
+    await state.set_state(OnboardingStates.waiting_district)
+
+
+@onboarding_router.message(OnboardingStates.waiting_district)
+async def got_district(message: Message, state: FSMContext, session: AsyncSession) -> None:
+    district = message.text.strip() if message.text else ""
+    if not district:
+        await message.answer("Пожалуйста, введите район.")
+        return
+    data = await state.get_data()
+    user_svc = UserService(session)
+    user = await user_svc.get_or_raise(message.from_user.id)
+    await user_svc.update(user, city=data.get("city"), district=district)
+    await _ask_goal(message, state)
 
 
 # ── 3. Goal ───────────────────────────────────────────────────────────────────
+
+async def _ask_goal(message: Message, state: FSMContext) -> None:
+    await message.answer("Выберите главную цель:", reply_markup=kb_goal())
+    await state.set_state(OnboardingStates.waiting_goal)
+
 
 @onboarding_router.callback_query(OnboardingStates.waiting_goal, F.data.startswith("goal:"))
 async def got_goal(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
