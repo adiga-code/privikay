@@ -162,6 +162,7 @@ def kb_settings() -> InlineKeyboardMarkup:
     kb.button(text="😴 Время сна", callback_data="settings:sleep_time")
     kb.button(text="🌍 Часовой пояс", callback_data="settings:timezone")
     kb.button(text="🦫 Сменить героя", callback_data="settings:hero")
+    kb.button(text="✏️ Изменить привычки", callback_data="settings:habits")
     kb.adjust(2)
     return kb.as_markup()
 

@@ -5,7 +5,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from keyboards.builders import kb_hero, kb_settings, kb_timezone
+from habits.registry import HABIT_REGISTRY
+from keyboards.builders import kb_habits, kb_hero, kb_settings, kb_timezone
 from services.user_service import UserService
 
 settings_router = Router(name="settings")
@@ -16,6 +17,8 @@ class SettingsStates(StatesGroup):
     waiting_sleep_time = State()
     waiting_timezone = State()
     waiting_hero = State()
+    waiting_habits = State()
+    waiting_habit_setup = State()
 
 
 @settings_router.message(Command("settings"))
@@ -158,6 +161,152 @@ async def got_hero(callback: CallbackQuery, state: FSMContext, session: AsyncSes
         parse_mode="Markdown",
     )
     await callback.answer()
+
+
+# ── Setting: habits ───────────────────────────────────────────────────────────
+
+_HABIT_SETUP_PROMPTS: dict[str, str] = {
+    "reading_format": (
+        "📚 *Формат отслеживания чтения*\n\n"
+        "*1* — в минутах\n*2* — в страницах\n\nВведите *1* или *2*:"
+    ),
+    "reading_target": "📚 *Цель по чтению*\n\nВведите целевое число (минуты или страницы):",
+    "meal_gap_target": (
+        "⏰ *Перерыв между приёмами пищи*\n\n"
+        "Введите *8*, *10* или *12* (часов):"
+    ),
+}
+
+_HABIT_SETUP_ERRORS: dict[str, str] = {
+    "reading_format": "Введите *1* (минуты) или *2* (страницы).",
+    "reading_target": "Введите целое число от 1 до 2000.",
+    "meal_gap_target": "Введите *8*, *10* или *12*.",
+}
+
+
+@settings_router.callback_query(F.data == "settings:habits")
+async def ask_habits(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    await callback.message.edit_reply_markup()
+    user_svc = UserService(session)
+    user = await user_svc.get_or_raise(callback.from_user.id)
+    show_weight = user.weight_goal.value != "none"
+    selected: list[str] = list(user.selected_habits or [])
+    await state.update_data(selected_habits=selected, show_weight=show_weight)
+    await callback.message.answer(
+        "✏️ *Выберите привычки*\n\nСнимите/добавьте нужные и нажмите *Продолжить*.",
+        parse_mode="Markdown",
+        reply_markup=kb_habits(selected=selected, show_weight=show_weight),
+    )
+    await state.set_state(SettingsStates.waiting_habits)
+    await callback.answer()
+
+
+@settings_router.callback_query(SettingsStates.waiting_habits, F.data.startswith("habit_toggle:"))
+async def toggle_habit_settings(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
+    key = callback.data.split(":")[1]
+    data = await state.get_data()
+    selected: list[str] = list(data.get("selected_habits", []))
+    show_weight: bool = data.get("show_weight", False)
+
+    if key == "done":
+        if not selected:
+            await callback.answer("Выберите хотя бы одну привычку.", show_alert=True)
+            return
+
+        user_svc = UserService(session)
+        user = await user_svc.get_or_raise(callback.from_user.id)
+        await user_svc.update(user, selected_habits=selected)
+
+        # Build setup queue for newly selected habits that need config
+        queue: list[str] = []
+        if "reading" in selected and user.reading_format is None:
+            queue.append("reading_format")
+            queue.append("reading_target")
+        elif "reading" in selected and user.reading_target is None:
+            queue.append("reading_target")
+        if "meal_gap" in selected and user.meal_gap_target is None:
+            queue.append("meal_gap_target")
+
+        await callback.message.edit_reply_markup()
+        await callback.answer()
+
+        if queue:
+            await state.update_data(habit_setup_queue=queue)
+            await state.set_state(SettingsStates.waiting_habit_setup)
+            await callback.message.answer(
+                _HABIT_SETUP_PROMPTS[queue[0]], parse_mode="Markdown"
+            )
+        else:
+            await state.clear()
+            names = [HABIT_REGISTRY[k].display_name for k in selected if k in HABIT_REGISTRY]
+            await callback.message.answer(
+                f"✅ Привычки обновлены:\n{', '.join(names)}",
+                parse_mode="Markdown",
+            )
+        return
+
+    if key in selected:
+        selected.remove(key)
+    else:
+        selected.append(key)
+    await state.update_data(selected_habits=selected)
+    await callback.message.edit_reply_markup(
+        reply_markup=kb_habits(selected=selected, show_weight=show_weight)
+    )
+    await callback.answer()
+
+
+@settings_router.message(SettingsStates.waiting_habit_setup)
+async def got_habit_setup(message: Message, state: FSMContext, session: AsyncSession) -> None:
+    data = await state.get_data()
+    queue: list[str] = list(data.get("habit_setup_queue", []))
+    if not queue:
+        return
+
+    current = queue[0]
+    raw = message.text.strip() if message.text else ""
+
+    try:
+        user_svc = UserService(session)
+        user = await user_svc.get_or_raise(message.from_user.id)
+
+        if current == "reading_format":
+            if raw not in ("1", "2"):
+                raise ValueError
+            fmt = "minutes" if raw == "1" else "pages"
+            await user_svc.update(user, reading_format=fmt)
+
+        elif current == "reading_target":
+            v = int(raw)
+            if not (1 <= v <= 2000):
+                raise ValueError
+            await user_svc.update(user, reading_target=v)
+
+        elif current == "meal_gap_target":
+            v = int(raw)
+            if v not in (8, 10, 12):
+                raise ValueError
+            await user_svc.update(user, meal_gap_target=v)
+
+    except (ValueError, TypeError):
+        await message.answer(_HABIT_SETUP_ERRORS[current], parse_mode="Markdown")
+        return
+
+    queue.pop(0)
+    await state.update_data(habit_setup_queue=queue)
+
+    if queue:
+        await message.answer(_HABIT_SETUP_PROMPTS[queue[0]], parse_mode="Markdown")
+    else:
+        await state.clear()
+        selected: list[str] = data.get("selected_habits", [])
+        names = [HABIT_REGISTRY[k].display_name for k in selected if k in HABIT_REGISTRY]
+        await message.answer(
+            f"✅ Привычки обновлены:\n{', '.join(names)}",
+            parse_mode="Markdown",
+        )
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
