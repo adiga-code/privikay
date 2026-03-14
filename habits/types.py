@@ -186,3 +186,56 @@ class NoSugarHabit(Habit):
 
     def question(self, target: None = None) -> str:
         return "🍬 Сегодня был сахар?"
+
+
+class ReadingHabit(Habit):
+    key = "reading"
+    display_name = "Чтение"
+    emoji = "📚"
+
+    def validate(self, raw: str) -> int:
+        value = int(raw.strip())
+        if not (0 <= value <= 2000):
+            raise ValueError("Введите число от 0 до 2000.")
+        return value
+
+    def evaluate(self, value: int, target=None) -> HabitResult:
+        if isinstance(target, (list, tuple)):
+            target_amount = int(target[0])
+        else:
+            target_amount = int(target) if target else 30
+        if value >= target_amount:
+            return HabitResult("done", 2, "✅ Цель по чтению выполнена")
+        if value >= int(target_amount * 0.7):
+            return HabitResult("almost", 1, "🟡 Почти — продолжай!")
+        return HabitResult("failed", 0, "❌ Цель не достигнута")
+
+    def question(self, target=None) -> str:
+        if isinstance(target, (list, tuple)) and len(target) == 2:
+            amount, unit = target
+            return f"📚 Сколько прочитали сегодня?\n_Цель: {amount} {unit}_"
+        goal = int(target) if target else 30
+        return f"📚 Сколько прочитали сегодня?\n_Цель: {goal}_"
+
+
+class MealGapHabit(Habit):
+    key = "meal_gap"
+    display_name = "Перерыв в питании"
+    emoji = "⏰"
+
+    def validate(self, raw: str) -> bool:
+        if raw in ("0", "no", "нет"):
+            return False
+        if raw in ("1", "yes", "да"):
+            return True
+        raise ValueError("Используйте кнопки Да / Нет.")
+
+    def evaluate(self, value: bool, target: int = 8) -> HabitResult:
+        hours = int(target) if target else 8
+        if value:
+            return HabitResult("done", 2, f"✅ Перерыв {hours} ч выдержан")
+        return HabitResult("failed", 0, f"❌ Перерыв {hours} ч не выдержан")
+
+    def question(self, target: int = 8) -> str:
+        hours = int(target) if target else 8
+        return f"⏰ Выдержал перерыв между приёмами пищи *{hours} ч*?"

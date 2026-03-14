@@ -60,6 +60,17 @@ class User(Base):
     )
     subscription_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Location (collected at payment)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    district: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Reading habit config
+    reading_format: Mapped[str | None] = mapped_column(String(10), nullable=True)  # "minutes" | "pages"
+    reading_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Meal gap habit config
+    meal_gap_target: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)  # 8 | 10 | 12
+
     # Flags
     onboarding_done: Mapped[bool] = mapped_column(Boolean, default=False)
     academy_offered: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -85,6 +96,8 @@ class DailyLog(Base):
     alcohol: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     smoking: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     no_sugar: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    reading_amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    meal_gap: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     day_index: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 

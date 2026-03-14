@@ -44,6 +44,8 @@ class SubscriptionMiddleware(BaseMiddleware):
                 current = await fsm_state.get_state()
                 if current in (
                     "PaymentStates:waiting_email",
+                    "PaymentStates:waiting_city",
+                    "PaymentStates:waiting_district",
                     "FeedbackStates:likes",
                     "FeedbackStates:dislikes",
                 ):

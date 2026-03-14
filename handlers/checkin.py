@@ -155,6 +155,7 @@ _FIELD_MAP = {
     "steps": "steps", "calories": "calories", "sleep": "sleep_hours",
     "stress": "stress_level", "energy": "energy_level",
     "alcohol": "alcohol", "smoking": "smoking", "no_sugar": "no_sugar",
+    "reading": "reading_amount", "meal_gap": "meal_gap",
 }
 
 
@@ -269,7 +270,7 @@ async def cmd_help(message: Message) -> None:
         "/start — перезапуск\n"
         "/help — эта справка\n\n"
         "💳 *Подписка*\n"
-        "Первые *10 дней* — бесплатно.\n"
+        "Первые *15 дней* — бесплатно.\n"
         "После этого доступны два плана:\n"
         "• Месяц — *249 ₽*\n"
         "• Год — *1790 ₽* _(экономия 1198 ₽)_\n\n"
@@ -279,4 +280,11 @@ async def cmd_help(message: Message) -> None:
 
 
 def _get_target(user, key: str):
-    return {"steps": user.steps_target, "calories": user.calories_target}.get(key)
+    if key == "reading":
+        unit = "минут" if user.reading_format == "minutes" else "страниц"
+        return (user.reading_target or 30, unit)
+    return {
+        "steps": user.steps_target,
+        "calories": user.calories_target,
+        "meal_gap": user.meal_gap_target or 8,
+    }.get(key)

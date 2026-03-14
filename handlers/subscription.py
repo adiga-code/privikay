@@ -26,8 +26,10 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class PaymentStates(StatesGroup):
-    waiting_email = State()   # collect email before payment
-    waiting_check = State()   # payment link sent, waiting confirmation
+    waiting_email    = State()  # collect email if no phone
+    waiting_city     = State()  # collect city
+    waiting_district = State()  # collect district
+    waiting_check    = State()  # payment link sent, waiting confirmation
 
 
 # ── ЮКасса API ────────────────────────────────────────────────────────────────
@@ -54,7 +56,13 @@ def _build_receipt(contact: str, description: str, amount_kopecks: int) -> dict:
 
 
 async def _create_payment(
-    amount_kopecks: int, description: str, user_id: int, plan: str, contact: str
+    amount_kopecks: int,
+    description: str,
+    user_id: int,
+    plan: str,
+    contact: str,
+    city: str = "",
+    district: str = "",
 ) -> dict:
     payload = {
         "amount": {"value": f"{amount_kopecks / 100:.2f}", "currency": "RUB"},
@@ -65,7 +73,12 @@ async def _create_payment(
         "capture": True,
         "description": description,
         "receipt": _build_receipt(contact, description, amount_kopecks),
-        "metadata": {"user_id": str(user_id), "plan": plan},
+        "metadata": {
+            "user_id": str(user_id),
+            "plan": plan,
+            "city": city,
+            "district": district,
+        },
     }
     auth = aiohttp.BasicAuth(settings.yukassa_shop_id, settings.yukassa_secret_key)
     async with aiohttp.ClientSession() as http:
@@ -102,9 +115,14 @@ def _kb_payment(url: str) -> InlineKeyboardMarkup:
 
 # ── Общий хелпер: создать платёж и отправить ссылку ──────────────────────────
 
-async def _send_payment_link(
-    message: Message, state: FSMContext, plan: str, contact: str
-) -> None:
+async def _send_payment_link(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    plan    = data.get("plan", "monthly")
+    contact = data.get("contact", "")
+    city    = data.get("city", "")
+    district = data.get("district", "")
+    user_id = data.get("user_id") or message.chat.id
+
     if plan == "monthly":
         description = "Подписка на месяц — Habit Tracker Bot"
         amount = settings.price_monthly
@@ -114,10 +132,8 @@ async def _send_payment_link(
         amount = settings.price_yearly
         plan_label = "год — 1790 ₽"
 
-    user_id = (await state.get_data()).get("user_id") or message.chat.id
-
     try:
-        resp = await _create_payment(amount, description, user_id, plan, contact)
+        resp = await _create_payment(amount, description, user_id, plan, contact, city, district)
         payment_id = resp["id"]
         pay_url = resp["confirmation"]["confirmation_url"]
     except Exception as e:
@@ -125,7 +141,7 @@ async def _send_payment_link(
         await message.answer("❌ Не удалось создать ссылку на оплату. Попробуйте позже.")
         return
 
-    await state.update_data(payment_id=payment_id, plan=plan)
+    await state.update_data(payment_id=payment_id)
     await state.set_state(PaymentStates.waiting_check)
 
     await message.answer(
@@ -249,30 +265,88 @@ async def cb_plan_selected(
     user_svc = UserService(session)
     user = await user_svc.get(callback.from_user.id)
 
-    # Если у пользователя есть телефон — используем сразу
-    if user and user.phone:
-        await state.update_data(user_id=callback.from_user.id)
-        await callback.message.answer("⏳ Создаём ссылку на оплату…")
-        await _send_payment_link(callback.message, state, plan, user.phone)
+    contact = (user.phone if user and user.phone else None)
+    await state.update_data(plan=plan, user_id=callback.from_user.id, contact=contact or "")
+
+    # Step 1: get contact if missing
+    if not contact:
+        await state.set_state(PaymentStates.waiting_email)
+        await callback.message.answer(
+            "📧 Для формирования чека введите ваш *e-mail*:",
+            parse_mode="Markdown",
+        )
         return
 
-    # Иначе просим email (нужен для чека 54-ФЗ)
-    await state.update_data(plan=plan, user_id=callback.from_user.id)
-    await state.set_state(PaymentStates.waiting_email)
-    await callback.message.answer(
-        "📧 Для формирования чека введите ваш *e-mail*:",
-        parse_mode="Markdown",
-    )
+    # Step 2: get city if missing
+    if not (user and user.city):
+        await state.set_state(PaymentStates.waiting_city)
+        await callback.message.answer(
+            "🏙 В каком *городе* вы живёте?\n\n_Например: Москва_",
+            parse_mode="Markdown",
+        )
+        return
+
+    # All data ready → create payment
+    await state.update_data(city=user.city, district=user.district or "")
+    await callback.message.answer("⏳ Создаём ссылку на оплату…")
+    await _send_payment_link(callback.message, state)
 
 
 @subscription_router.message(PaymentStates.waiting_email)
-async def got_email(message: Message, state: FSMContext) -> None:
-    email = message.text.strip()
+async def got_email(message: Message, state: FSMContext, session: AsyncSession) -> None:
+    email = message.text.strip() if message.text else ""
     if not _EMAIL_RE.match(email):
         await message.answer("Введите корректный e-mail, например: ivan@mail.ru")
         return
 
+    await state.update_data(contact=email)
+
+    # Check if city already set
+    user_svc = UserService(session)
+    user = await user_svc.get(message.from_user.id)
+    if user and user.city:
+        await state.update_data(city=user.city, district=user.district or "")
+        await message.answer("⏳ Создаём ссылку на оплату…")
+        await _send_payment_link(message, state)
+        return
+
+    await state.set_state(PaymentStates.waiting_city)
+    await message.answer(
+        "🏙 В каком *городе* вы живёте?\n\n_Например: Москва_",
+        parse_mode="Markdown",
+    )
+
+
+@subscription_router.message(PaymentStates.waiting_city)
+async def got_city(message: Message, state: FSMContext) -> None:
+    city = message.text.strip() if message.text else ""
+    if not city:
+        await message.answer("Пожалуйста, введите название города.")
+        return
+
+    await state.update_data(city=city)
+    await state.set_state(PaymentStates.waiting_district)
+    await message.answer(
+        "🏘 Введите *район* или округ:\n\n_Например: Центральный, ЗАО, Невский_",
+        parse_mode="Markdown",
+    )
+
+
+@subscription_router.message(PaymentStates.waiting_district)
+async def got_district(message: Message, state: FSMContext, session: AsyncSession) -> None:
+    district = message.text.strip() if message.text else ""
+    if not district:
+        await message.answer("Пожалуйста, введите район.")
+        return
+
+    await state.update_data(district=district)
+
+    # Save city/district to user profile
     data = await state.get_data()
-    plan = data.get("plan", "monthly")
+    user_svc = UserService(session)
+    user = await user_svc.get(message.from_user.id)
+    if user:
+        await user_svc.update(user, city=data.get("city"), district=district)
+
     await message.answer("⏳ Создаём ссылку на оплату…")
-    await _send_payment_link(message, state, plan, email)
+    await _send_payment_link(message, state)

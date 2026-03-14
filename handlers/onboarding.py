@@ -144,6 +144,11 @@ async def toggle_habit(callback: CallbackQuery, state: FSMContext, session: Asyn
             queue.append("steps_target")
         if "calories" in selected:
             queue.append("calories_target")
+        if "reading" in selected:
+            queue.append("reading_format")
+            queue.append("reading_target")
+        if "meal_gap" in selected:
+            queue.append("meal_gap_target")
         queue.append("checkin_time")
         if "sleep" in selected:
             queue.append("sleep_time")
@@ -196,6 +201,22 @@ _SETUP_PROMPTS: dict[str, str] = {
         "Введите своё значение (от 1 000 до 50 000):"
     ),
     "calories_target": "🍎 *Цель по калориям*\n\nОт 500 до 10 000 ккал в день:",
+    "reading_format": (
+        "📚 *Формат отслеживания чтения*\n\n"
+        "Как хотите считать?\n\n"
+        "*1* — в минутах\n"
+        "*2* — в страницах\n\n"
+        "Введите *1* или *2*:"
+    ),
+    "reading_target": "📚 *Цель по чтению*\n\nВведите целевое число (минуты или страницы):",
+    "meal_gap_target": (
+        "⏰ *Перерыв между приёмами пищи*\n\n"
+        "Выберите целевой интервал:\n\n"
+        "*8* — 8 часов\n"
+        "*10* — 10 часов\n"
+        "*12* — 12 часов\n\n"
+        "Введите *8*, *10* или *12*:"
+    ),
     "checkin_time": (
         "🕐 *Время ежедневного напоминания*\n\n"
         "Введите *местное время* в формате *ЧЧ:ММ*, например *21:00*"
@@ -210,6 +231,9 @@ _SETUP_PROMPTS: dict[str, str] = {
 _SETUP_ERRORS: dict[str, str] = {
     "steps_target": "Введите целое число от 1 000 до 50 000.",
     "calories_target": "Введите целое число от 500 до 10 000.",
+    "reading_format": "Введите *1* (минуты) или *2* (страницы).",
+    "reading_target": "Введите целое число от 1 до 2000.",
+    "meal_gap_target": "Введите *8*, *10* или *12*.",
     "checkin_time": "Введите время в формате ЧЧ:ММ, например 21:00.",
     "sleep_time": "Введите время в формате ЧЧ:ММ, например 23:00.",
 }
@@ -245,6 +269,24 @@ async def got_setup_value(message: Message, state: FSMContext, session: AsyncSes
             if not (500 <= v <= 10_000):
                 raise ValueError
             await user_svc.update(user, calories_target=v)
+
+        elif current == "reading_format":
+            if raw not in ("1", "2"):
+                raise ValueError
+            fmt = "minutes" if raw == "1" else "pages"
+            await user_svc.update(user, reading_format=fmt)
+
+        elif current == "reading_target":
+            v = int(raw)
+            if not (1 <= v <= 2000):
+                raise ValueError
+            await user_svc.update(user, reading_target=v)
+
+        elif current == "meal_gap_target":
+            v = int(raw)
+            if v not in (8, 10, 12):
+                raise ValueError
+            await user_svc.update(user, meal_gap_target=v)
 
         elif current in ("checkin_time", "sleep_time"):
             parts = raw.split(":")
