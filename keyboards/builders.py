@@ -201,6 +201,16 @@ def kb_settings() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+# ── Open feedback (free-text) ─────────────────────────────────────────────────
+
+def kb_feedback_entry() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="💬 Оставить отзыв", callback_data="open_feedback:start")
+    kb.button(text="⚙️ Изменить настройки", callback_data="settings:open")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 # ── Feedback ──────────────────────────────────────────────────────────────────
 
 def kb_feedback_useful(day_number: int) -> InlineKeyboardMarkup:

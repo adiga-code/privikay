@@ -83,6 +83,7 @@ class User(Base):
     last_weight_check: Mapped[date | None] = mapped_column(Date, nullable=True)
     last_insight_sent: Mapped[date | None] = mapped_column(Date, nullable=True)
     last_feedback_sent: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_open_feedback_sent: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class DailyLog(Base):
@@ -114,6 +115,7 @@ class FeedbackLog(Base):
     is_useful: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     likes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     dislikes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    suggestions: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     would_recommend: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

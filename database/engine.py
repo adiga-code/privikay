@@ -20,7 +20,9 @@ _MIGRATIONS = [
     ("users", "meal_gap_target",     "SMALLINT"),
     ("daily_logs", "reading_amount", "INTEGER"),
     ("daily_logs", "meal_gap",       "BOOLEAN"),
-    ("users",      "referral_source", "VARCHAR(100)"),
+    ("users",      "referral_source",        "VARCHAR(100)"),
+    ("users",      "last_open_feedback_sent", "DATE"),
+    ("feedback_logs", "suggestions",          "VARCHAR(2000)"),
 ]
 
 

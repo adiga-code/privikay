@@ -192,7 +192,28 @@ async def run_daily_maintenance(bot: Bot, session_maker: async_sessionmaker) -> 
                     )
                     await user_svc.update(user, academy_offered=True)
 
-                # 5. Beta feedback (at days 5, 10, 15 of trial)
+                # 5. Open free-text feedback (at day 7)
+                if (
+                    days_since_reg == 7
+                    and user.last_open_feedback_sent != today
+                ):
+                    from keyboards.builders import kb_feedback_entry
+                    await bot.send_message(
+                        user.id,
+                        "И ещё один маленький вопрос 🙏\n\n"
+                        "*Нам очень важна твоя обратная связь на этом этапе.*\n\n"
+                        "Напиши, пожалуйста:\n"
+                        "— что тебе нравится в боте\n"
+                        "— что не нравится\n"
+                        "— что хотелось бы добавить или изменить\n\n"
+                        "Можно коротко или подробно — как удобно.\n"
+                        "Мы всё читаем и готовы улучшать продукт вместе с вами.",
+                        parse_mode="Markdown",
+                        reply_markup=kb_feedback_entry(),
+                    )
+                    await user_svc.update(user, last_open_feedback_sent=today)
+
+                # 6. Beta feedback (at days 5, 10, 15 of trial)
                 days_since_reg = _days_since(None, today, since=user.registered_at.date())
                 if (
                     days_since_reg in (5, 10, 15)
