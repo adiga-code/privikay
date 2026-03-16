@@ -14,11 +14,13 @@ class AnalyticsService:
         Returns a normalised 0–10 score based on the habits the user selected
         that contribute to the index (steps, calories, sleep, stress, energy).
         """
+        from habits.registry import BOOL_HABITS
         scoreable = [h for h in user.selected_habits if h in INDEX_HABITS]
         if not scoreable:
             return 0.0
 
-        max_score = len(scoreable) * 2
+        # Boolean habits (alcohol, smoking, no_sugar, meal_gap) max score = 1, others = 2
+        max_score = sum(1 if h in BOOL_HABITS else 2 for h in scoreable)
         total = 0
 
         for key in scoreable:
@@ -48,6 +50,7 @@ class AnalyticsService:
                 good.append(f"— {habit.display_name}")
             elif result.status in ("almost", "failed"):
                 attention.append(f"— {habit.display_name}")
+            # "recorded" не учитываем (устаревший статус)
 
         lines = [f"🌟 *Индекс дня: {index} / 10*\n"]
         if good:
@@ -144,13 +147,22 @@ class AnalyticsService:
             "sleep": log.sleep_hours,
             "stress": log.stress_level,
             "energy": log.energy_level,
+            "reading": log.reading_amount,
+            "meal_gap": log.meal_gap,
+            "alcohol": log.alcohol,
+            "smoking": log.smoking,
+            "no_sugar": log.no_sugar,
         }.get(key)
 
     @staticmethod
     def _get_target(user: User, key: str) -> Any:
+        if key == "reading":
+            unit = "минут" if user.reading_format == "minutes" else "страниц"
+            return (user.reading_target or 30, unit)
         return {
             "steps": user.steps_target,
             "calories": user.calories_target,
+            "meal_gap": user.meal_gap_target or 8,
         }.get(key)
 
     @staticmethod

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import DailyLog
 from habits.registry import BOOL_HABITS, HABIT_REGISTRY, SCALE_HABITS, TEXT_HABITS
 from heroes.data import get_hero
-from keyboards.builders import kb_scale, kb_share_report, kb_start_checkin, kb_yes_no
+from keyboards.builders import kb_checkin_edit, kb_scale, kb_share_report, kb_start_checkin, kb_yes_no, kb_yes_no_positive
 from services.analytics_service import AnalyticsService
 from services.log_service import LogService
 from services.report_service import ReportService
@@ -51,10 +51,23 @@ async def _begin_checkin(
 
     log = await log_svc.get_today_log(user_id)
     if log and log.day_index is not None:
-        await message.answer(
-            f"✅ Чек-ин уже выполнен!\n\n🌟 Индекс дня: *{log.day_index} / 10*",
-            parse_mode="Markdown",
-        )
+        # Check if editing is still allowed (before 23:59 local time)
+        from datetime import timezone as tz_module
+        now_utc = datetime.now(tz_module.utc)
+        user_hour = (now_utc.hour + user.timezone_offset) % 24
+        user_minute = now_utc.minute
+        if user_hour < 23 or (user_hour == 23 and user_minute <= 59):
+            await message.answer(
+                f"✅ Чек-ин уже выполнен!\n\n🌟 Индекс дня: *{log.day_index} / 10*\n\n"
+                f"Хочешь изменить или дополнить данные?",
+                parse_mode="Markdown",
+                reply_markup=kb_checkin_edit(),
+            )
+        else:
+            await message.answer(
+                f"✅ Чек-ин уже выполнен!\n\n🌟 Индекс дня: *{log.day_index} / 10*",
+                parse_mode="Markdown",
+            )
         return
 
     log = await log_svc.get_or_create_today_log(user_id)
@@ -71,6 +84,57 @@ async def _begin_checkin(
         parse_mode="Markdown",
     )
     await _ask_next(message, state, session)
+
+
+# ── Edit check-in ─────────────────────────────────────────────────────────────
+
+@checkin_router.callback_query(F.data == "checkin:edit_keep")
+async def cb_edit_keep(callback: CallbackQuery) -> None:
+    await callback.message.edit_reply_markup()
+    await callback.answer("Оставлено без изменений.")
+
+
+@checkin_router.callback_query(F.data == "checkin:edit_all")
+async def cb_edit_all(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    await callback.message.edit_reply_markup()
+    await callback.answer()
+    user_svc = UserService(session)
+    log_svc = LogService(session)
+    user = await user_svc.get_or_raise(callback.from_user.id)
+    log = await log_svc.get_today_log(callback.from_user.id)
+    queue = [h for h in user.selected_habits if h in HABIT_REGISTRY]
+    await state.update_data(queue=queue, log_id=log.id, user_id=callback.from_user.id)
+    await state.set_state(CheckinStates.in_progress)
+    await callback.message.answer("✏️ Отвечаем заново — новые ответы перезапишут старые.")
+    await _ask_next(callback.message, state, session)
+
+
+@checkin_router.callback_query(F.data == "checkin:edit_missing")
+async def cb_edit_missing(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    await callback.message.edit_reply_markup()
+    await callback.answer()
+    user_svc = UserService(session)
+    log_svc = LogService(session)
+    user = await user_svc.get_or_raise(callback.from_user.id)
+    log = await log_svc.get_today_log(callback.from_user.id)
+
+    _LOG_FIELD_MAP = {
+        "steps": log.steps, "calories": log.calories, "sleep": log.sleep_hours,
+        "stress": log.stress_level, "energy": log.energy_level,
+        "alcohol": log.alcohol, "smoking": log.smoking, "no_sugar": log.no_sugar,
+        "reading": log.reading_amount, "meal_gap": log.meal_gap,
+    }
+    # Only habits that have no data yet
+    queue = [h for h in user.selected_habits if h in HABIT_REGISTRY and _LOG_FIELD_MAP.get(h) is None]
+
+    if not queue:
+        await callback.message.answer("✅ Все привычки уже заполнены.")
+        return
+
+    await state.update_data(queue=queue, log_id=log.id, user_id=callback.from_user.id)
+    await state.set_state(CheckinStates.in_progress)
+    await callback.message.answer("➕ Заполняем только пропущенные:")
+    await _ask_next(callback.message, state, session)
 
 
 # ── Ask next habit ────────────────────────────────────────────────────────────
@@ -93,7 +157,12 @@ async def _ask_next(message: Message, state: FSMContext, session: AsyncSession) 
     if current in SCALE_HABITS:
         await message.answer(question, reply_markup=kb_scale(f"ci_{current}"))
     elif current in BOOL_HABITS:
-        await message.answer(question, reply_markup=kb_yes_no(f"ci_{current}:1", f"ci_{current}:0"))
+        # meal_gap: "Да" = хорошо (выдержал), остальные: "Да" = плохо (выпил/курил/ел сахар)
+        if current == "meal_gap":
+            await message.answer(question, parse_mode="Markdown",
+                                 reply_markup=kb_yes_no_positive(f"ci_{current}:1", f"ci_{current}:0"))
+        else:
+            await message.answer(question, reply_markup=kb_yes_no(f"ci_{current}:1", f"ci_{current}:0"))
     else:
         await message.answer(question, parse_mode="Markdown")
 

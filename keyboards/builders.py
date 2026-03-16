@@ -61,11 +61,24 @@ def kb_habits(selected: list[str], show_weight: bool = False) -> InlineKeyboardM
 
 def kb_timezone() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    offsets = [-5, -3, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]
-    for off in offsets:
-        sign = "+" if off >= 0 else ""
-        kb.button(text=f"UTC{sign}{off}", callback_data=f"tz:{off}")
-    kb.adjust(4)
+    timezones = [
+        (2,  "UTC+2 (Калининград)"),
+        (3,  "UTC+3 (Москва, СПб)"),
+        (4,  "UTC+4 (Самара, Баку)"),
+        (5,  "UTC+5 (Екатеринбург)"),
+        (6,  "UTC+6 (Омск)"),
+        (7,  "UTC+7 (Красноярск, Новосибирск)"),
+        (8,  "UTC+8 (Иркутск, Улан-Удэ)"),
+        (9,  "UTC+9 (Якутск)"),
+        (10, "UTC+10 (Владивосток)"),
+        (11, "UTC+11 (Магадан)"),
+        (12, "UTC+12 (Камчатка)"),
+        (0,  "UTC+0 (Лондон)"),
+        (1,  "UTC+1 (Берлин, Варшава)"),
+    ]
+    for off, label in timezones:
+        kb.button(text=label, callback_data=f"tz:{off}")
+    kb.adjust(1)
     return kb.as_markup()
 
 
@@ -113,10 +126,31 @@ def kb_scale(prefix: str) -> InlineKeyboardMarkup:
 
 
 def kb_yes_no(yes_data: str, no_data: str) -> InlineKeyboardMarkup:
+    """Для вредных привычек: Да=плохо(❌), Нет=хорошо(✅)."""
     kb = InlineKeyboardBuilder()
     kb.button(text="❌ Да", callback_data=yes_data)
     kb.button(text="✅ Нет", callback_data=no_data)
     kb.adjust(2)
+    return kb.as_markup()
+
+
+def kb_yes_no_positive(yes_data: str, no_data: str) -> InlineKeyboardMarkup:
+    """Для полезных привычек: Да=хорошо(✅), Нет=плохо(❌)."""
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Да", callback_data=yes_data)
+    kb.button(text="❌ Нет", callback_data=no_data)
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+# ── Check-in edit ─────────────────────────────────────────────────────────────
+
+def kb_checkin_edit() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Изменить ответы", callback_data="checkin:edit_all")
+    kb.button(text="➕ Добавить пропущенное", callback_data="checkin:edit_missing")
+    kb.button(text="✅ Оставить как есть", callback_data="checkin:edit_keep")
+    kb.adjust(1)
     return kb.as_markup()
 
 

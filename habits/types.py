@@ -59,11 +59,13 @@ class SleepHabit(Habit):
         return value
 
     def evaluate(self, value: float, target: None = None) -> HabitResult:
-        if 7 <= value <= 8:
-            return HabitResult("done", 2, "✅ Отлично (7–8 ч)")
-        if 6 <= value < 7:
-            return HabitResult("almost", 1, "🟡 Почти (6–7 ч)")
-        return HabitResult("failed", 0, "❌ Мало сна")
+        if 7 <= value <= 9:
+            return HabitResult("done", 2, "✅ Отлично (7–9 ч)")
+        if 6 <= value < 7 or 9 < value <= 10:
+            return HabitResult("almost", 1, "🟡 Почти (6–7 ч)" if value < 7 else "🟡 Немного много (>9 ч)")
+        if value > 10:
+            return HabitResult("almost", 1, "🟡 Слишком много сна (>10 ч)")
+        return HabitResult("failed", 0, "❌ Мало сна (<6 ч)")
 
     def question(self, target: None = None) -> str:
         return "😴 Сколько часов вы спали?\n_Цель: 7–8 часов_"
@@ -139,8 +141,8 @@ class AlcoholHabit(Habit):
 
     def evaluate(self, value: bool, target: None = None) -> HabitResult:
         if not value:
-            return HabitResult("done", 0, "✅ Без алкоголя")
-        return HabitResult("recorded", 0, "📝 Был алкоголь")
+            return HabitResult("done", 1, "✅ Без алкоголя")
+        return HabitResult("failed", 0, "❌ Был алкоголь")
 
     def question(self, target: None = None) -> str:
         return "🍷 Сегодня был алкоголь?"
@@ -160,8 +162,8 @@ class SmokingHabit(Habit):
 
     def evaluate(self, value: bool, target: None = None) -> HabitResult:
         if not value:
-            return HabitResult("done", 0, "✅ Не курил")
-        return HabitResult("recorded", 0, "📝 Было курение")
+            return HabitResult("done", 1, "✅ Не курил")
+        return HabitResult("failed", 0, "❌ Было курение")
 
     def question(self, target: None = None) -> str:
         return "🚬 Сегодня курил?"
@@ -181,8 +183,8 @@ class NoSugarHabit(Habit):
 
     def evaluate(self, value: bool, target: None = None) -> HabitResult:
         if not value:
-            return HabitResult("done", 0, "✅ День без сахара!")
-        return HabitResult("recorded", 0, "📝 Был сахар")
+            return HabitResult("done", 1, "✅ День без сахара!")
+        return HabitResult("failed", 0, "❌ Был сахар")
 
     def question(self, target: None = None) -> str:
         return "🍬 Сегодня был сахар?"

@@ -15,7 +15,8 @@ HABIT_REGISTRY: dict[str, Habit] = {
 }
 
 INDEX_HABITS: frozenset[str] = frozenset({
-    "steps", "calories", "sleep", "stress", "energy", "reading", "meal_gap",
+    "steps", "calories", "sleep", "stress", "energy",
+    "reading", "meal_gap", "alcohol", "smoking", "no_sugar",
 })
 SCALE_HABITS: frozenset[str] = frozenset({"stress", "energy"})
 BOOL_HABITS: frozenset[str] = frozenset({"alcohol", "smoking", "no_sugar", "meal_gap"})
