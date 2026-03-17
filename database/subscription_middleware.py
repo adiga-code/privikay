@@ -7,13 +7,16 @@ from config import settings
 from services.subscription_service import SubscriptionService
 
 # Commands and callback prefixes that bypass the paywall
-_ALLOWED_COMMANDS = frozenset({"/start", "/help", "/subscribe", "/admin", "/feedback"})
+_ALLOWED_COMMANDS = frozenset({"/start", "/help", "/subscribe", "/admin", "/feedback", "/referral", "/groups"})
 _ALLOWED_CB_PREFIXES = (
     "onboarding:", "goal:", "wgoal:", "habit_toggle:",
     "tz:", "hero:", "sub:", "checkin:begin",
-    "feedback:",       # structured feedback survey
-    "open_feedback:",  # free-text feedback
-    "settings:open",   # settings from feedback message
+    "feedback:",        # structured feedback survey
+    "open_feedback:",   # free-text feedback
+    "settings:open",    # settings from feedback message
+    "referral:",        # referral copy link
+    "group:",           # support groups
+    "nutrition:",       # nutrition onboarding
 )
 
 
@@ -51,6 +54,10 @@ class SubscriptionMiddleware(BaseMiddleware):
                     "OpenFeedbackStates:likes",
                     "OpenFeedbackStates:dislikes",
                     "OpenFeedbackStates:suggestions",
+                    "BroadcastStates:waiting_photo",
+                    "BroadcastStates:waiting_text",
+                    "BroadcastStates:confirming",
+                    "GroupStates:waiting_code",
                 ):
                     return await handler(event, data)
             user_id = msg.from_user.id if msg.from_user else None

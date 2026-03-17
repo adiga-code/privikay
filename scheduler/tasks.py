@@ -8,9 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from config import settings
-from database.models import User, WeightGoal
+from database.models import DailyLog, GroupMember, SupportGroup, User, WeightGoal
 from heroes.data import get_hero
-from keyboards.builders import kb_academy, kb_feedback_useful, kb_start_checkin, kb_start_weight
+from keyboards.builders import (
+    kb_academy, kb_feedback_useful, kb_start_checkin, kb_start_weight, kb_support_friends,
+)
 from services.analytics_service import AnalyticsService
 from services.log_service import LogService
 from services.report_service import ReportService
@@ -38,6 +40,15 @@ def setup_scheduler(bot: Bot, session_maker: async_sessionmaker) -> AsyncIOSched
         CronTrigger(hour=0, minute=5),
         args=[bot, session_maker],
         id="daily_maintenance",
+        replace_existing=True,
+    )
+
+    # Group reports at 18:00 UTC (21:00 Moscow time)
+    scheduler.add_job(
+        send_group_reports,
+        CronTrigger(hour=18, minute=0),
+        args=[bot, session_maker],
+        id="group_reports",
         replace_existing=True,
     )
 
@@ -120,6 +131,8 @@ async def run_daily_maintenance(bot: Bot, session_maker: async_sessionmaker) -> 
             today = date.today()
 
             try:
+                days_since_reg = _days_since(None, today, since=user.registered_at.date())
+
                 # 1. Weekly report (every 7 days)
                 if _should_send_weekly_report(user, today):
                     from_date = today - timedelta(days=6)
@@ -192,7 +205,35 @@ async def run_daily_maintenance(bot: Bot, session_maker: async_sessionmaker) -> 
                     )
                     await user_svc.update(user, academy_offered=True)
 
-                # 5. Open free-text feedback (at day 7)
+                # 5. Referral offer after 3-day streak (only once)
+                if (
+                    user.last_referral_offer_sent != today
+                    and not user.referral_reward_given
+                ):
+                    all_logs = await log_svc.get_all_logs(user.id)
+                    sorted_logs = sorted(all_logs, key=lambda l: l.date, reverse=True)
+                    streak = 0
+                    for lg in sorted_logs:
+                        if lg.day_index is not None:
+                            streak += 1
+                        else:
+                            break
+                    if streak >= 3:
+                        from aiogram.types import BufferedInputFile
+                        bot_info = await bot.get_me()
+                        link = f"https://t.me/{bot_info.username}?start=ref_{user.id}"
+                        await bot.send_message(
+                            user.id,
+                            f"🔥 Ты держишь привычку уже *{streak} дня подряд*!\n\n"
+                            "Многие проходят челлендж вместе с друзьями — так легче не срываться.\n\n"
+                            "Пригласи *3 друзей* и получи бонус — *21 день подписки бесплатно*.\n\n"
+                            f"Твоя ссылка:\n`{link}`",
+                            parse_mode="Markdown",
+                            reply_markup=kb_support_friends(),
+                        )
+                        await user_svc.update(user, last_referral_offer_sent=today)
+
+                # 6. Open free-text feedback (at day 7)
                 if (
                     days_since_reg == 7
                     and user.last_open_feedback_sent != today
@@ -213,8 +254,7 @@ async def run_daily_maintenance(bot: Bot, session_maker: async_sessionmaker) -> 
                     )
                     await user_svc.update(user, last_open_feedback_sent=today)
 
-                # 6. Beta feedback (at days 5, 10, 15 of trial)
-                days_since_reg = _days_since(None, today, since=user.registered_at.date())
+                # 7. Beta feedback (at days 5, 10, 15 of trial)
                 if (
                     days_since_reg in (5, 10, 15)
                     and user.last_feedback_sent != today
@@ -233,6 +273,97 @@ async def run_daily_maintenance(bot: Bot, session_maker: async_sessionmaker) -> 
 
             except Exception as e:
                 logger.warning("Maintenance error user=%s: %s", user.id, e)
+
+
+# ── Group daily reports ────────────────────────────────────────────────────────
+
+async def send_group_reports(bot: Bot, session_maker: async_sessionmaker) -> None:
+    from sqlalchemy import select as sa_select
+    today = date.today()
+
+    async with session_maker() as session:
+        groups_result = await session.execute(
+            sa_select(SupportGroup).where(
+                (SupportGroup.last_report_sent == None) | (SupportGroup.last_report_sent < today)
+            )
+        )
+        groups: list[SupportGroup] = list(groups_result.scalars().all())
+
+        log_svc = LogService(session)
+        user_svc = UserService(session)
+
+        for group in groups:
+            try:
+                members_result = await session.execute(
+                    sa_select(GroupMember).where(GroupMember.group_id == group.id)
+                )
+                members = list(members_result.scalars().all())
+                if len(members) < 2:
+                    continue
+
+                # Load users and their common habits
+                users = []
+                for m in members:
+                    u = await user_svc.get(m.user_id)
+                    if u:
+                        users.append(u)
+
+                if not users:
+                    continue
+
+                # Find common habits
+                from habits.registry import HABIT_REGISTRY
+                common = set(users[0].selected_habits)
+                for u in users[1:]:
+                    common &= set(u.selected_habits)
+                common = [h for h in common if h in HABIT_REGISTRY]
+
+                if not common:
+                    continue
+
+                # Build report lines
+                lines = ["👥 *Ваша группа поддержки сегодня:*\n"]
+                all_done = True
+                for u in users:
+                    log = await log_svc.get_today_log(u.id)
+                    if not log:
+                        all_done = False
+                        lines.append(f"• {u.name} — не отметил сегодня")
+                        continue
+                    from services.analytics_service import AnalyticsService
+                    analytics = AnalyticsService()
+                    done = sum(
+                        1 for h in common
+                        if analytics._get_value(log, h) is not None
+                        and HABIT_REGISTRY[h].evaluate(
+                            analytics._get_value(log, h),
+                            analytics._get_target(u, h)
+                        ).status == "done"
+                    )
+                    if done < len(common):
+                        all_done = False
+                    lines.append(f"• {u.name} — {done} из {len(common)}")
+
+                # Update streak
+                if all_done:
+                    group.streak = (group.streak or 0) + 1
+                    lines.append(f"\n🔥 *Общая серия группы: {group.streak} дн.*\nПродолжаем завтра!")
+                else:
+                    group.streak = 0
+                    lines.append("\n😔 Сегодня серия остановилась.\nЗавтра можно начать новую!")
+
+                group.last_report_sent = today
+                await session.commit()
+
+                report_text = "\n".join(lines)
+                for u in users:
+                    try:
+                        await bot.send_message(u.id, report_text, parse_mode="Markdown")
+                    except Exception as e:
+                        logger.warning("Group report failed user=%s: %s", u.id, e)
+
+            except Exception as e:
+                logger.warning("Group report error group=%s: %s", group.id, e)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

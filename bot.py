@@ -14,7 +14,9 @@ from database.subscription_middleware import SubscriptionMiddleware
 from handlers.admin import admin_router
 from handlers.checkin import checkin_router
 from handlers.feedback import feedback_router
+from handlers.groups import groups_router
 from handlers.onboarding import onboarding_router
+from handlers.referral import referral_router
 from handlers.settings import settings_router
 from handlers.start import start_router
 from handlers.subscription import subscription_router
@@ -49,7 +51,9 @@ async def main() -> None:
     dp.include_router(start_router)
     dp.include_router(admin_router)
     dp.include_router(subscription_router)
-    dp.include_router(feedback_router)       # feedback survey FSM
+    dp.include_router(feedback_router)
+    dp.include_router(referral_router)
+    dp.include_router(groups_router)
     dp.include_router(onboarding_router)
     dp.include_router(settings_router)
     dp.include_router(weight_router)
@@ -60,6 +64,9 @@ async def main() -> None:
         BotCommand(command="report",    description="Отчёт за последние 7 дней"),
         BotCommand(command="weight",    description="Записать вес"),
         BotCommand(command="subscribe", description="Подписка — 249 ₽/мес или 1790 ₽/год"),
+        BotCommand(command="referral",  description="Пригласить друзей и получить бонус"),
+        BotCommand(command="groups",    description="Группы поддержки"),
+        BotCommand(command="feedback",  description="Оставить отзыв о боте"),
         BotCommand(command="settings",  description="Настройки: герой, время, часовой пояс"),
         BotCommand(command="help",      description="Справка"),
         BotCommand(command="start",     description="Перезапустить бота"),

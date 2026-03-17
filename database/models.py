@@ -71,8 +71,26 @@ class User(Base):
     # Meal gap habit config
     meal_gap_target: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)  # 8 | 10 | 12
 
-    # Referral
+    # Referral (blogger tracking)
     referral_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Referral (user-to-user)
+    referrer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    referral_count: Mapped[int] = mapped_column(Integer, default=0)
+    referral_reward_given: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_referral_offer_sent: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Nutrition
+    gender: Mapped[str | None] = mapped_column(String(1), nullable=True)       # 'm' | 'f'
+    age: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    height_cm: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    activity_level: Mapped[str | None] = mapped_column(String(20), nullable=True)  # sedentary/light/moderate/high
+    nutrition_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # count/simplified/learn
+    nutrition_goal_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # lose/maintain/gain
+    nutrition_method: Mapped[str | None] = mapped_column(String(20), nullable=True)    # manual/calculated
+
+    # Support group
+    group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Flags
     onboarding_done: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -103,6 +121,27 @@ class DailyLog(Base):
     reading_amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
     meal_gap: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     day_index: Mapped[float | None] = mapped_column(Float, nullable=True)
+    nutrition_status: Mapped[str | None] = mapped_column(String(20), nullable=True)  # on_plan/partly/off_plan
+
+
+class SupportGroup(Base):
+    __tablename__ = "support_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(10), unique=True, index=True)
+    creator_id: Mapped[int] = mapped_column(BigInteger)
+    streak: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_report_sent: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+class GroupMember(Base):
+    __tablename__ = "group_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    group_id: Mapped[int] = mapped_column(Integer, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class FeedbackLog(Base):

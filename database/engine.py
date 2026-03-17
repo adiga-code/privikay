@@ -20,9 +20,26 @@ _MIGRATIONS = [
     ("users", "meal_gap_target",     "SMALLINT"),
     ("daily_logs", "reading_amount", "INTEGER"),
     ("daily_logs", "meal_gap",       "BOOLEAN"),
-    ("users",      "referral_source",        "VARCHAR(100)"),
-    ("users",      "last_open_feedback_sent", "DATE"),
-    ("feedback_logs", "suggestions",          "VARCHAR(2000)"),
+    ("users",         "referral_source",          "VARCHAR(100)"),
+    ("users",         "last_open_feedback_sent",  "DATE"),
+    ("feedback_logs", "suggestions",              "VARCHAR(2000)"),
+    # Referral user-to-user
+    ("users", "referrer_id",              "BIGINT"),
+    ("users", "referral_count",           "INTEGER NOT NULL DEFAULT 0"),
+    ("users", "referral_reward_given",    "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "last_referral_offer_sent", "DATE"),
+    # Nutrition
+    ("users", "gender",              "VARCHAR(1)"),
+    ("users", "age",                 "SMALLINT"),
+    ("users", "height_cm",           "SMALLINT"),
+    ("users", "weight_kg",           "FLOAT"),
+    ("users", "activity_level",      "VARCHAR(20)"),
+    ("users", "nutrition_mode",      "VARCHAR(20)"),
+    ("users", "nutrition_goal_type", "VARCHAR(20)"),
+    ("users", "nutrition_method",    "VARCHAR(20)"),
+    # Support group
+    ("users",      "group_id",         "INTEGER"),
+    ("daily_logs", "nutrition_status", "VARCHAR(20)"),
 ]
 
 

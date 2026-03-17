@@ -235,6 +235,148 @@ def kb_feedback_recommend() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+# ── Nutrition onboarding ──────────────────────────────────────────────────────
+
+def kb_nutrition_mode() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📊 Считать калории", callback_data="nutrition:mode:count")
+    kb.button(text="📖 Хочу разобраться как считать", callback_data="nutrition:mode:learn")
+    kb.button(text="🥗 Не хочу считать калории", callback_data="nutrition:mode:simplified")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_nutrition_method() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Ввести свою цель", callback_data="nutrition:method:manual")
+    kb.button(text="🧮 Помочь рассчитать", callback_data="nutrition:method:calculate")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_nutrition_gender() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="👨 Мужской", callback_data="nutrition:gender:m")
+    kb.button(text="👩 Женский", callback_data="nutrition:gender:f")
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+def kb_nutrition_activity() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🪑 Сидячий образ жизни", callback_data="nutrition:activity:sedentary")
+    kb.button(text="🚶 Лёгкая активность", callback_data="nutrition:activity:light")
+    kb.button(text="🏃 Средняя активность", callback_data="nutrition:activity:moderate")
+    kb.button(text="💪 Высокая активность", callback_data="nutrition:activity:high")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_nutrition_goal_type() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="⬇️ Похудение", callback_data="nutrition:goal:lose")
+    kb.button(text="⚖️ Поддержание веса", callback_data="nutrition:goal:maintain")
+    kb.button(text="💪 Набор мышечной массы", callback_data="nutrition:goal:gain")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_nutrition_confirm(calories: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=f"✅ Использовать {calories} ккал", callback_data=f"nutrition:confirm:{calories}")
+    kb.button(text="✏️ Изменить вручную", callback_data="nutrition:confirm:manual")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_nutrition_guide() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="➡️ Продолжить", callback_data="nutrition:guide:continue")
+    kb.button(text="📄 Скачать полный гайд", callback_data="nutrition:guide:pdf")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+# ── Nutrition checkin (simplified / learn mode) ───────────────────────────────
+
+def kb_nutrition_checkin() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ По плану", callback_data="ci_nutrition:on_plan")
+    kb.button(text="🟡 Частично по плану", callback_data="ci_nutrition:partly")
+    kb.button(text="❌ Не по плану", callback_data="ci_nutrition:off_plan")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+# ── Referral ──────────────────────────────────────────────────────────────────
+
+def kb_invite_friends(bot_username: str, user_id: int) -> InlineKeyboardMarkup:
+    link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📤 Поделиться ссылкой", switch_inline_query=link)
+    kb.button(text="📋 Скопировать ссылку", callback_data=f"referral:copy:{user_id}")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_support_friends() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="👥 Начать с друзьями", callback_data="group:start")
+    kb.button(text="⏭ Позже", callback_data="group:later")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+# ── Support groups ────────────────────────────────────────────────────────────
+
+def kb_group_choice() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="➕ Создать группу", callback_data="group:create")
+    kb.button(text="🔑 Ввести код группы", callback_data="group:join")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_group_share(code: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📋 Скопировать код", callback_data=f"group:copy:{code}")
+    kb.button(text="📤 Поделиться кодом", switch_inline_query=f"Присоединяйся к моей группе поддержки! Код: {code}")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+# ── Admin broadcast ───────────────────────────────────────────────────────────
+
+def kb_broadcast_filters() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="👥 Все пользователи", callback_data="broadcast:filter:all")
+    kb.button(text="🆓 На триале", callback_data="broadcast:filter:trial")
+    kb.button(text="💳 Платная подписка", callback_data="broadcast:filter:paid")
+    kb.button(text="🎯 По цели", callback_data="broadcast:filter:goal")
+    kb.button(text="✅ Активные (7 дней)", callback_data="broadcast:filter:active")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_broadcast_goals() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🕐 Наладить режим", callback_data="broadcast:goal:routine")
+    kb.button(text="🏃 Больше двигаться", callback_data="broadcast:goal:move_more")
+    kb.button(text="⚖️ Похудеть", callback_data="broadcast:goal:lose_weight")
+    kb.button(text="🧘 Снизить стресс", callback_data="broadcast:goal:reduce_stress")
+    kb.button(text="🚫 Избавиться от привычек", callback_data="broadcast:goal:quit_bad_habits")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def kb_broadcast_confirm() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Отправить", callback_data="broadcast:send")
+    kb.button(text="❌ Отмена", callback_data="broadcast:cancel")
+    kb.adjust(2)
+    return kb.as_markup()
+
+
 # ── Admin ─────────────────────────────────────────────────────────────────────
 
 def kb_admin() -> InlineKeyboardMarkup:
@@ -243,5 +385,6 @@ def kb_admin() -> InlineKeyboardMarkup:
     kb.button(text="💳 Подписки", callback_data="admin:subs")
     kb.button(text="📋 Отзывы бета-теста", callback_data="admin:feedback")
     kb.button(text="🔗 Рефералы", callback_data="admin:referrals")
+    kb.button(text="📢 Рассылка", callback_data="admin:broadcast")
     kb.adjust(1)
     return kb.as_markup()

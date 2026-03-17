@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import DailyLog
 from habits.registry import BOOL_HABITS, HABIT_REGISTRY, SCALE_HABITS, TEXT_HABITS
 from heroes.data import get_hero
-from keyboards.builders import kb_checkin_edit, kb_scale, kb_share_report, kb_start_checkin, kb_yes_no, kb_yes_no_positive
+from keyboards.builders import kb_checkin_edit, kb_nutrition_checkin, kb_scale, kb_share_report, kb_start_checkin, kb_yes_no, kb_yes_no_positive
 from services.analytics_service import AnalyticsService
 from services.log_service import LogService
 from services.report_service import ReportService
@@ -156,6 +156,11 @@ async def _ask_next(message: Message, state: FSMContext, session: AsyncSession) 
 
     if current in SCALE_HABITS:
         await message.answer(question, reply_markup=kb_scale(f"ci_{current}"))
+    elif current == "calories" and user.nutrition_mode in ("simplified", "learn"):
+        await message.answer(
+            "🍽 Как сегодня было с питанием?",
+            reply_markup=kb_nutrition_checkin(),
+        )
     elif current in BOOL_HABITS:
         # meal_gap: "Да" = хорошо (выдержал), остальные: "Да" = плохо (выпил/курил/ел сахар)
         if current == "meal_gap":
@@ -186,6 +191,37 @@ async def handle_text_answer(message: Message, state: FSMContext, session: Async
         await message.answer(str(e))
         return
     await _save_and_advance(message, state, session, current, value, queue)
+
+
+# ── Nutrition simplified handler ──────────────────────────────────────────────
+
+@checkin_router.callback_query(CheckinStates.in_progress, F.data.startswith("ci_nutrition:"))
+async def handle_nutrition_answer(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+) -> None:
+    data = await state.get_data()
+    queue: list[str] = list(data.get("queue", []))
+    if not queue or queue[0] != "calories":
+        await callback.answer()
+        return
+
+    status = callback.data.split(":")[1]  # on_plan / partly / off_plan
+    labels = {
+        "on_plan": "✅ Отлично. Сегодня ты держишь план по питанию.",
+        "partly":  "🟡 Почти получилось. Завтра попробуем ещё точнее.",
+        "off_plan": "📝 Сегодня калорий больше, чем планировали. Ничего страшного — завтра новый день.",
+    }
+    log_svc = LogService(session)
+    log = await session.get(DailyLog, data.get("log_id"))
+    await log_svc.update_log(log, nutrition_status=status)
+
+    await callback.message.edit_reply_markup()
+    await callback.answer()
+    await callback.message.answer(labels.get(status, ""))
+
+    queue.pop(0)
+    await state.update_data(queue=queue)
+    await _ask_next(callback.message, state, session)
 
 
 # ── Button handler (scale / bool) ─────────────────────────────────────────────
