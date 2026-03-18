@@ -427,10 +427,16 @@ async def got_nutrition_guide(callback: CallbackQuery, state: FSMContext) -> Non
     await callback.message.edit_reply_markup()
     await callback.answer()
     if action == "pdf":
-        await callback.message.answer(
-            "📄 Полный гайд пока готовится — мы пришлём его позже!\n\n"
-            "Двигаемся дальше.",
-        )
+        import os
+        from aiogram.types import FSInputFile
+        pdf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "files", "гайд культура бега.pdf")
+        if os.path.exists(pdf_path):
+            await callback.message.answer_document(
+                FSInputFile(pdf_path, filename="гайд культура бега.pdf"),
+                caption="📄 Гайд по культуре бега — читай и применяй!",
+            )
+        else:
+            await callback.message.answer("📄 Гайд временно недоступен.")
     await _ask_hero(callback.message, state)
 
 
