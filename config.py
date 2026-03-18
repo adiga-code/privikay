@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     price_yearly: int = 179000   # 1790 RUB
 
     # Trial period in days
-    trial_days: int = 15
+    trial_days: int = 25
 
     # Comma-separated admin Telegram user IDs, e.g. "123456789,987654321"
     admin_ids: str = ""

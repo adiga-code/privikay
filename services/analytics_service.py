@@ -47,9 +47,9 @@ class AnalyticsService:
             habit = HABIT_REGISTRY[key]
             result = habit.evaluate(value, self._get_target(user, key))
             if result.status == "done":
-                good.append(f"— {habit.display_name}")
+                good.append(f"✔️ {habit.display_name}")
             elif result.status in ("almost", "failed"):
-                attention.append(f"— {habit.display_name}")
+                attention.append(f"🔺 {habit.display_name}")
             # "recorded" не учитываем (устаревший статус)
 
         lines = [f"🌟 *Индекс дня: {index} / 10*\n"]
