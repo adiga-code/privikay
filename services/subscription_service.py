@@ -10,7 +10,7 @@ class SubscriptionService:
     """Pure subscription business logic — no DB access."""
 
     def is_active(self, user: User) -> bool:
-        return self.is_trial(user) or self.is_subscribed(user)
+        return True  # все пользователи бесплатны
 
     def is_trial(self, user: User) -> bool:
         return (datetime.utcnow() - user.registered_at).days < TRIAL_DAYS

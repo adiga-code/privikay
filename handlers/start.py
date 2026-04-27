@@ -5,7 +5,6 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from keyboards.builders import kb_start
-from services.subscription_service import SubscriptionService
 from services.user_service import UserService
 
 start_router = Router(name="start")
@@ -18,7 +17,6 @@ WELCOME_TEXT = (
     "— улучшить режим и самочувствие\n"
     "— отслеживать прогресс\n"
     "— замечать результаты\n\n"
-    "Первые *15 дней* — бесплатно.\n\n"
     "Готов начать?"
 )
 
@@ -77,23 +75,10 @@ async def cmd_start(
                     pass
 
     if user and user.onboarding_done:
-        sub_svc = SubscriptionService()
         from heroes.data import get_hero
         hero = get_hero(user.hero_key)
 
-        if sub_svc.is_trial(user):
-            days = sub_svc.trial_days_left(user)
-            extra = f"🕐 Бесплатный период: ещё *{days} дн.*\n\n"
-        elif sub_svc.is_subscribed(user):
-            days = sub_svc.subscription_days_left(user)
-            extra = f"💳 Подписка активна: ещё *{days} дн.*\n\n"
-        else:
-            from keyboards.builders import kb_subscribe
-            await message.answer(
-                f"{hero.phrase('paywall')}\n\n🔒 Бесплатный период закончился.",
-                reply_markup=kb_subscribe(),
-            )
-            return
+        extra = ""
 
         await message.answer(
             f"{hero.emoji} С возвращением, *{user.name}*!\n\n"
